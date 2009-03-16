@@ -1,0 +1,24 @@
+---
+name: Net-OAuth-Simple
+version: 0.8
+author:
+  - 'Simon Wistow, C<<simon@thegestalt.org >>'
+abstract: a simple wrapper round the OAuth protocol
+license: perl
+resources:
+  license: http://dev.perl.org/licenses/
+requires:
+  CGI: 0
+  Crypt::SSLeay: 0
+  LWP::UserAgent: 0
+  Net::OAuth: 0
+  Test::More: 0.06
+  URI: 0
+provides:
+  Net::OAuth::Simple:
+    file: lib/Net/OAuth/Simple.pm
+    version: 0.8
+generated_by: Module::Build version 0.2808
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.2.html
+  version: 1.2

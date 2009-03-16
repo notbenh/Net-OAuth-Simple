@@ -1,0 +1,5 @@
+\.tar\.gz$
+\.svn
+_build
+blib
+Build

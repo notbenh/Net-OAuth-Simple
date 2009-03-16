@@ -1,0 +1,15 @@
+Revision history for Net-OAuth-Simple
+
+0.8 2009-03-16
+        Remove rogue debug statement
+
+0.7 2009-03-16
+        Fix saving of tokens properly
+        Allow passing in params to the authorization url
+
+0.6 2009-03-15
+        Fix dependencies
+
+0.5 2009-03-15
+        First version, released on an unsuspecting world.
+
