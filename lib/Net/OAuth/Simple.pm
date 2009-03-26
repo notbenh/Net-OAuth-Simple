@@ -1,9 +1,8 @@
-
 package Net::OAuth::Simple;
 
 use warnings;
 use strict;
-our $VERSION = "0.9";
+our $VERSION = "1.0";
 
 use URI;
 use LWP;
@@ -54,11 +53,14 @@ for you.
 
     sub view_restricted_resource {
         my $self = shift;
+        my $url  = shift;
         return $self->make_restricted_request($url, 'GET');
     }
 
     sub update_restricted_resource {
-        my $self = shift
+        my $self         = shift;
+        my $url          = shift;
+        my %extra_params = @_;
         return $self->make_restricted_request($url, 'POST', %extra_params);    
     }
     1;
@@ -71,7 +73,7 @@ Then in your main app you need to do
     my $app     = Net::AppThatUsesOAuth->new(%tokens);
 
     # Check to see we have a consumer key and secret
-    unless ($app->consumer_key && $app->consumer_key) {
+    unless ($app->consumer_key && $app->consumer_secret) {
         die "You must go get a consumer key and secret from App\n";
     } 
     

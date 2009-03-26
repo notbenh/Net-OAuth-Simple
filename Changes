@@ -1,5 +1,8 @@
 Revision history for Net-OAuth-Simple
 
+1.0 2009-03-26
+        Patch to fix typos from Masayoshi Sekimura
+
 0.9 2009-03-26
         Patch from Tatsuhiko Miyagawa to allow Google's scope param to work
 
