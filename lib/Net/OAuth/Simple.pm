@@ -2,7 +2,7 @@ package Net::OAuth::Simple;
 
 use warnings;
 use strict;
-our $VERSION = "1.0";
+our $VERSION = "1.1";
 
 use URI;
 use LWP;
@@ -23,6 +23,7 @@ BEGIN {
 
 our @required_constructor_params = qw(consumer_key consumer_secret);
 our @access_token_params         = qw(access_token access_token_secret);
+our @general_token_params        = qw(general_token general_token_secret);
 our $UNAUTHORIZED                = "Unauthorized.";
 
 =head1 NAME
@@ -273,6 +274,49 @@ sub access_token_secret {
     return $self->_token('access_token_secret', @_);
 }
 
+=head2 general_token [token]
+
+Get or set the general token.
+
+See documentation in C<new()>
+
+=cut
+
+sub general_token {
+     my $self = shift;
+     $self->_token('general_token', @_);
+}
+
+=head2 general_token_secret [secret]
+
+Get or set the general token secret.
+
+See documentation in C<new()>
+
+=cut
+
+sub general_token_secret {
+    my $self = shift;
+    $self->_token('general_token_secret', @_);
+}
+
+=head2 authorized_general_token
+
+Is the app currently authorized for general token requests.
+
+See documentation in C<new()>
+
+=cut
+
+sub authorized_general_token {
+     my $self = shift;
+     foreach my $param ( @general_token_params ) {
+        return 0 unless defined $self->$param();
+     }
+     return 1;
+}
+
+
 =head2 request_token [request_token]
 
 Returns the current request token.
@@ -453,14 +497,37 @@ sub make_restricted_request {
 
     croak $UNAUTHORIZED unless $self->authorized;
 
+    return $self->_restricted_request( $self->access_token, $self->access_token_secret, @_ );
+}
+
+=head2 make_general_request <url> <HTTP method> [extra[s]]
+
+Make a request to C<url> using the given HTTP method using 
+the general purpose tokens.
+
+Any extra parameters can be passed in as a hash.
+
+=cut
+sub make_general_request {
+    my $self  = shift;
+
+    croak $UNAUTHORIZED unless $self->authorized_general_token;
+
+    return $self->_restricted_request( $self->general_token, $self->general_token_secret, @_ );
+}
+
+sub _restricted_request {
+    my $self     = shift;
+    my $token    = shift;
+    my $secret   = shift;
     my $url      = shift;
     my $method   = shift;
     my %extras   = @_;
     my $response = $self->_make_request(
         'Net::OAuth::ProtectedResourceRequest',
         $url, $method,
-        token            => $self->access_token,
-        token_secret     => $self->access_token_secret,
+        token            => $token,
+        token_secret     => $secret,
         extra_params     => \%extras
     );
     return $response;
@@ -543,9 +610,15 @@ sub save_tokens {
     my $file   = shift;
     my %tokens = @_;
 
+    my $max    = 0;
+    for my $key (keys %tokens) {
+        $max   = length($key) if length($key)>$max;
+    }
+
     open(my $fh, ">$file") || die "Couldn't open $file for writing: $!\n";
     foreach my $key (sort keys %tokens) {
-        print $fh "$key = ".$tokens{$key}."\n";
+        my $pad = " "x($max-length($key));
+        print $fh "$key ${pad}= ".$tokens{$key}."\n";
     }
     close($fh);
 }
