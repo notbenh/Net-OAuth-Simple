@@ -1,5 +1,8 @@
 Revision history for Net-OAuth-Simple
 
+1.2 2009-07-??
+        OAuth 1.0a support thanks to Jayesh Masand and Menno Blom 
+
 1.1 2009-05-07
         General purpose token methods
 

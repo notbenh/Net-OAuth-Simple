@@ -2,12 +2,13 @@ package Net::OAuth::Simple;
 
 use warnings;
 use strict;
-our $VERSION = "1.1";
+our $VERSION = "1.2";
 
 use URI;
 use LWP;
 use CGI;
 use Carp;
+use Net::OAuth;
 require Net::OAuth::Request;
 require Net::OAuth::RequestTokenRequest;
 require Net::OAuth::AccessTokenRequest;
@@ -45,6 +46,7 @@ for you.
         my $class  = shift;
         my %tokens = @_;
         return $class->SUPER::new( tokens => \%tokens, 
+        						   protocol_version => '1.0a',
                                    urls   => {
                                         authorization_url => ...,
                                         request_token_url => ...,
@@ -147,11 +149,16 @@ be a hash ref with the keys
 
 =back
 
+If you pass in a key C<protocol_version> with a value equal to B<1.0a> then 
+the newest version of the OAuth protocol will be used. A value equal to B<1.0> will 
+mean the old version will be used. Defaults to B<1.0a>
+
 =cut
 
 sub new {
     my $class  = shift;
     my %params = @_;
+    $params{protocol_version} ||= '1.0a';
     my $client = bless \%params, $class;
 
     # Verify arguments
@@ -176,6 +183,17 @@ sub _check {
             die "Missing required parameter '$param'";
         }
     }
+}
+
+=head2 oauth_1_0a 
+
+Whether or not we're using 1.0a version of OAuth (necessary for, 
+amongst others, FireEagle)
+
+=cut
+sub oauth_1_0a {
+	my $self = shift;
+	return $self->{protocol_version } eq '1.0a';
 }
 
 =head2 authorized
@@ -344,11 +362,64 @@ sub request_token_secret {
     return $self->_token('request_token_secret', @_);
 }
 
+=head2 verifier [verifier]
+
+Returns the current oauth_verifier.
+
+Can optionally set a new verifier.
+
+=cut
+
+sub verifier {
+    my $self = shift;
+    return $self->_param('verifier', @_);
+}
+
+=head2 callback [callback]
+
+Returns the oauth callback.
+
+Can optionally set the oauth callback.
+
+=cut
+
+sub callback {
+    my $self = shift;
+    $self->_param('callback', @_);
+}
+
+=head2 callback_confirmed [callback_confirmed]
+
+Returns the oauth callback confirmed.
+
+Can optionally set the oauth callback confirmed.
+
+=cut
+
+sub callback_confirmed {
+    my $self = shift;
+    $self->_param('callback_confirmed', @_);
+}
+
+
 sub _token {
     my $self = shift;
-    my $key  = shift;
-    $self->{tokens}->{$key} = shift if @_;
-    return $self->{tokens}->{$key};
+    $self->_store('tokens', @_);
+}
+
+sub _param {
+	my $self = shift;
+	$self->_store('params', @_);
+}
+
+sub _store {
+	my $self = shift;
+	my $ns   = shift;
+	my $key  = shift;
+    $self->{$ns}->{$key} = shift if @_;
+    return $self->{$ns}->{$key};
+
+	
 }
 
 =head2 authorization_url
@@ -397,7 +468,7 @@ sub _nonce {
     return int( rand( 2**32 ) );
 }
 
-=head2 request_access_token
+=head2 request_access_token [param[s]]
 
 Request the access token and access token secret for this user.
 
@@ -408,16 +479,29 @@ Returns the access token and access token secret but also sets
 them internally so that after calling this method you can
 immediately call C<location> or C<update_location>.
 
+If you pass in a hash of params then they will added as parameters to the URL.
+
 =cut
 
 sub request_access_token {
-    my $self = shift;
-    my $url  = $self->access_token_url;
+    my $self   = shift;
+    my %params = @_;
+    my $url    = $self->access_token_url;
+    
+    $params{token}        = $self->request_token        unless defined $params{token};
+    $params{token_secret} = $self->request_token_secret unless defined $params{token_secret};
+    
+    if ($self->oauth_1_0a) {
+	    $params{verifier} = $self->verifier                             unless defined $params{verifier};
+	    die "You must pass a verified parameter when using OAuth v1.0a" unless defined $params{verifier};
+	    
+    }
+	
+    
     my $access_token_response = $self->_make_request(
         'Net::OAuth::AccessTokenRequest',
         $url, 'GET',
-        token            => $self->request_token,
-        token_secret     => $self->request_token_secret,
+		%params,
     );
 
     # Cast response into CGI query for EZ parameter decoding
@@ -428,7 +512,7 @@ sub request_access_token {
     $self->access_token($access_token_response_query->param('oauth_token'));
     $self->access_token_secret($access_token_response_query->param('oauth_token_secret'));
 
-    delete $self->{tokens}->{$_} for qw(request_token request_token_secret);
+    delete $self->{tokens}->{$_} for qw(request_token request_token_secret verifier);
 
     die "ERROR: $url did not reply with an access token"
       unless ( $self->access_token && $self->access_token_secret );
@@ -436,21 +520,31 @@ sub request_access_token {
     return ( $self->access_token, $self->access_token_secret );
 }
 
-=head2 request_request_token
+=head2 request_request_token [param[s]]
 
 Request the request token and request token secret for this user.
 
 This is called automatically by C<get_authorization_url> if necessary.
 
+If you pass in a hash of params then they will added as parameters to the URL.
+
 =cut
 
 
 sub request_request_token {
-    my $self = shift;
-    my $url  = $self->request_token_url;       
+    my $self   = shift;
+    my %params = @_;
+    my $url    = $self->request_token_url; 
+    
+    if ($self->oauth_1_0a) {
+    	$params{callback} = $self->callback                             unless defined $params{callback};
+    	die "You must pass a callback parameter when using OAuth v1.0a" unless defined $params{callback};
+    }
+    	  
     my $request_token_response = $self->_make_request(
         'Net::OAuth::RequestTokenRequest',
-        $url, 'GET');
+        $url, 'GET', 
+        %params);
 
     die "GET for $url failed: ".$request_token_response->status_line
       unless ( $request_token_response->is_success );
@@ -462,6 +556,10 @@ sub request_request_token {
     # Split out token and secret parameters from the request token response
     $self->request_token($request_token_response_query->param('oauth_token'));
     $self->request_token_secret($request_token_response_query->param('oauth_token_secret'));
+    $self->callback_confirmed($request_token_response_query->param('oauth_callback_confirmed'));
+    
+    die "Response does not confirm to OAuth1.0a. oauth_callback_confirmed not received"
+     if $self->oauth_1_0a && !$self->callback_confirmed;
 
 }
 
@@ -478,7 +576,7 @@ sub get_authorization_url {
     my %params = @_;
     my $url  = $self->authorization_url;
     if (!defined $self->request_token) {
-        $self->request_request_token;
+        $self->request_request_token(%params);
     }
     $params{oauth_token} = $self->request_token;
     $url->query_form(%params);
@@ -551,6 +649,7 @@ sub _make_request {
         request_url      => $uri,
         request_method   => uc($method),
         signature_method => $self->signature_method,
+        protocol_version => $self->oauth_1_0a ? Net::OAuth::PROTOCOL_VERSION_1_0A : Net::OAuth::PROTOCOL_VERSION_1_0,
         timestamp        => time,
         nonce            => $self->_nonce,
         extra_params     => \%query,
@@ -611,7 +710,7 @@ sub save_tokens {
     my %tokens = @_;
 
     my $max    = 0;
-    for my $key (keys %tokens) {
+    foreach my $key (keys %tokens) {
         $max   = length($key) if length($key)>$max;
     }
 

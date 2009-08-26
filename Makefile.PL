@@ -8,7 +8,7 @@ WriteMakefile
                            'CGI' => '0',
                            'Crypt::SSLeay' => '0',
                            'LWP::UserAgent' => '0',
-                           'Net::OAuth' => '0',
+                           'Net::OAuth' => '0.19',
                            'Test::More' => '0.06',
                            'URI' => '0'
                          },
