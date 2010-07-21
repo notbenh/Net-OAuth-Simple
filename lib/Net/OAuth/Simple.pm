@@ -2,18 +2,19 @@ package Net::OAuth::Simple;
 
 use warnings;
 use strict;
-our $VERSION = "1.2";
+our $VERSION = "1.4";
 
 use URI;
 use LWP;
 use CGI;
+use HTTP::Request::Common ();
 use Carp;
 use Net::OAuth;
 require Net::OAuth::Request;
 require Net::OAuth::RequestTokenRequest;
 require Net::OAuth::AccessTokenRequest;
 require Net::OAuth::ProtectedResourceRequest;
-
+require Net::OAuth::XauthAccessTokenRequest;
 
 BEGIN {
     eval {  require Math::Random::MT };
@@ -46,7 +47,7 @@ for you.
         my $class  = shift;
         my %tokens = @_;
         return $class->SUPER::new( tokens => \%tokens, 
-        						   protocol_version => '1.0a',
+                                   protocol_version => '1.0a',
                                    urls   => {
                                         authorization_url => ...,
                                         request_token_url => ...,
@@ -192,8 +193,8 @@ amongst others, FireEagle)
 
 =cut
 sub oauth_1_0a {
-	my $self = shift;
-	return $self->{protocol_version } eq '1.0a';
+    my $self = shift;
+    return $self->{protocol_version } eq '1.0a';
 }
 
 =head2 authorized
@@ -207,7 +208,7 @@ Note that the credentials may be wrong and so the request may still fail.
 sub authorized {
     my $self = shift;
     foreach my $param ( @access_token_params ) {
-        return 0 unless defined $self->{tokens}->{$param};
+        return 0 unless defined $self->{tokens}->{$param} && length $self->{tokens}->{$param};
     }
     return 1;
 }
@@ -408,18 +409,18 @@ sub _token {
 }
 
 sub _param {
-	my $self = shift;
-	$self->_store('params', @_);
+    my $self = shift;
+    $self->_store('params', @_);
 }
 
 sub _store {
-	my $self = shift;
-	my $ns   = shift;
-	my $key  = shift;
+    my $self = shift;
+    my $ns   = shift;
+    my $key  = shift;
     $self->{$ns}->{$key} = shift if @_;
     return $self->{$ns}->{$key};
 
-	
+    
 }
 
 =head2 authorization_url
@@ -492,17 +493,25 @@ sub request_access_token {
     $params{token_secret} = $self->request_token_secret unless defined $params{token_secret};
     
     if ($self->oauth_1_0a) {
-	    $params{verifier} = $self->verifier                             unless defined $params{verifier};
-	    die "You must pass a verified parameter when using OAuth v1.0a" unless defined $params{verifier};
-	    
+        $params{verifier} = $self->verifier                             unless defined $params{verifier};
+        die "You must pass a verified parameter when using OAuth v1.0a" unless defined $params{verifier};
+        
     }
-	
+    
     
     my $access_token_response = $self->_make_request(
         'Net::OAuth::AccessTokenRequest',
         $url, 'GET',
-		%params,
+        %params,
     );
+
+    return $self->_decode_tokens($url, $access_token_response);
+}
+
+sub _decode_tokens {
+    my $self                  = shift;
+    my $url                   = shift;
+    my $access_token_response = shift;
 
     # Cast response into CGI query for EZ parameter decoding
     my $access_token_response_query =
@@ -518,6 +527,46 @@ sub request_access_token {
       unless ( $self->access_token && $self->access_token_secret );
 
     return ( $self->access_token, $self->access_token_secret );
+    
+}
+
+=head2 xauth_request_access_token [param[s]]
+
+The same as C<request_access_token> but for xAuth.
+
+For more information on xAuth see
+
+    http://apiwiki.twitter.com/Twitter-REST-API-Method%3A-oauth-access_token-for-xAuth  
+
+You must pass in the parameters
+
+    x_auth_username
+    x_auth_password
+    x_auth_mode
+
+You must have HTTPS enabled for LWP::UserAgent.
+
+See C<examples/twitter_xauth> for a sample implementation.
+
+=cut
+sub xauth_request_access_token {
+    my $self = shift;
+    my %params = @_;
+    my $url = $self->access_token_url;
+	$url =~ s !^http:!https:!; # force https
+
+    my %xauth_params = map { $_ => $params{$_} } 
+        grep {/^x_auth_/}
+        @{Net::OAuth::XauthAccessTokenRequest->required_message_params};
+
+	use Data::Dumper;
+    my $access_token_response = $self->_make_request(
+        'Net::OAuth::XauthAccessTokenRequest',
+        $url, 'POST',
+        %xauth_params,
+    );
+
+    return $self->_decode_tokens($url, $access_token_response);
 }
 
 =head2 request_request_token [param[s]]
@@ -537,10 +586,10 @@ sub request_request_token {
     my $url    = $self->request_token_url; 
     
     if ($self->oauth_1_0a) {
-    	$params{callback} = $self->callback                             unless defined $params{callback};
-    	die "You must pass a callback parameter when using OAuth v1.0a" unless defined $params{callback};
+        $params{callback} = $self->callback                             unless defined $params{callback};
+        die "You must pass a callback parameter when using OAuth v1.0a" unless defined $params{callback};
     }
-    	  
+          
     my $request_token_response = $self->_make_request(
         'Net::OAuth::RequestTokenRequest',
         $url, 'GET', 
@@ -660,10 +709,16 @@ sub _make_request {
       unless $request->verify;
 
     my $params = $request->to_hash;
-    my $request_url = URI->new($url);
-    $request_url->query_form(%$params);
-    my $response    = $self->{browser}->$method($request_url);
-    die "$method on $request_url failed: ".$response->status_line
+     my $req;
+    if ($method eq 'post') {
+         $req = HTTP::Request::Common::POST($uri, Content => $params);
+    } else {
+         my $request_url = URI->new($url);
+        $request_url->query_form(%$params);
+        $req = HTTP::Request::Common::GET($request_url);
+    }
+    my $response = $self->{browser}->request($req);
+    die "$method on $request failed: ".$response->status_line
       unless ( $response->is_success );
 
     return $response;

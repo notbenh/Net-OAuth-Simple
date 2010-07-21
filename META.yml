@@ -1,6 +1,6 @@
 ---
 name: Net-OAuth-Simple
-version: 1.2
+version: 1.4
 author:
   - 'Simon Wistow, C<<simon@thegestalt.org >>'
 abstract: a simple wrapper round the OAuth protocol
@@ -11,14 +11,16 @@ requires:
   CGI: 0
   Crypt::SSLeay: 0
   LWP::UserAgent: 0
-  Net::OAuth: 0.19
+  Net::OAuth: 0.22
   Test::More: 0.06
   URI: 0
+configure_requires:
+  Module::Build: 0.35
 provides:
   Net::OAuth::Simple:
     file: lib/Net/OAuth/Simple.pm
-    version: 1.2
-generated_by: Module::Build version 0.2808
+    version: 1.4
+generated_by: Module::Build version 0.35
 meta-spec:
-  url: http://module-build.sourceforge.net/META-spec-v1.2.html
-  version: 1.2
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4

@@ -1,12 +1,12 @@
 Changes
+examples/twitter_xauth
+lib/Net/OAuth/Simple.pm
+Makefile.PL
 MANIFEST
 MANIFEST.SKIP
-Build.PL
-Makefile.PL
+META.yml
 README
-lib/Net/OAuth/Simple.pm
 t/00-load.t
 t/boilerplate.t
 t/pod-coverage.t
 t/pod.t
-META.yml
