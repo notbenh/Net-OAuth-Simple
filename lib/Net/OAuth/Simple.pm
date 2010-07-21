@@ -686,7 +686,7 @@ sub _make_request {
     my $class   = shift;
     my $url     = shift;
     my $method  = lc(shift);
-    my %extra   = @_;
+    my @extra   = @_; 
 
     my $uri   = URI->new($url);
     my %query = $uri->query_form;
@@ -702,16 +702,16 @@ sub _make_request {
         timestamp        => time,
         nonce            => $self->_nonce,
         extra_params     => \%query,
-        %extra,
+        @extra,
     );
     $request->sign;
     die "COULDN'T VERIFY! Check OAuth parameters.\n"
       unless $request->verify;
 
     my $params = $request->to_hash;
-     my $req;
+    my $req;
     if ($method eq 'post') {
-         $req = HTTP::Request::Common::POST($uri, Content => $params);
+         $req = HTTP::Request::Common::POST($uri, %$params);
     } else {
          my $request_url = URI->new($url);
         $request_url->query_form(%$params);
