@@ -686,7 +686,7 @@ sub _make_request {
     my $class   = shift;
     my $url     = shift;
     my $method  = lc(shift);
-    my @extra   = @_; 
+    my %extra   = @_; 
 
     my $uri   = URI->new($url);
     my %query = $uri->query_form;
@@ -702,9 +702,10 @@ sub _make_request {
         timestamp        => time,
         nonce            => $self->_nonce,
         extra_params     => \%query,
-        @extra,
+        %extra,
     );
-    $request->sign;
+
+    (defined $extra{signature_key}) ?  $request->sign($extra{signature_key}) : $request->sign;
     die "COULDN'T VERIFY! Check OAuth parameters.\n"
       unless $request->verify;
 
@@ -712,16 +713,24 @@ sub _make_request {
     my $req;
     if ($method eq 'post') {
          $req = HTTP::Request::Common::POST($uri, %$params);
+         $req->authorization( $self->_make_auth_header($request));
     } else {
          my $request_url = URI->new($url);
         $request_url->query_form(%$params);
         $req = HTTP::Request::Common::GET($request_url);
     }
+
     my $response = $self->{browser}->request($req);
     die "$method on $request failed: ".$response->status_line
       unless ( $response->is_success );
 
     return $response;
+}
+
+sub _make_auth_header {
+   my $self    = shift;
+   my $request = shift;
+   $request->to_authorization_header;
 }
 
 =head2 load_tokens <file>
