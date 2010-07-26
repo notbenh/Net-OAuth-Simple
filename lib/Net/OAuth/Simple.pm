@@ -705,7 +705,7 @@ sub _make_request {
         %extra,
     );
 
-    (defined $extra{signature_key}) ?  $request->sign($extra{signature_key}) : $request->sign;
+    $request->sign;
     die "COULDN'T VERIFY! Check OAuth parameters.\n"
       unless $request->verify;
 
@@ -723,7 +723,6 @@ sub _make_request {
     my $response = $self->{browser}->request($req);
     die "$method on $request failed: ".$response->status_line
       unless ( $response->is_success );
-
     return $response;
 }
 
